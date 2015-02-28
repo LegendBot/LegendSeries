@@ -1,12 +1,20 @@
-local Version = 1
+local Version = 2
 local Auto_Update = true
 local Champions = {
 	--[[Change true to false if you do not wish to use that champion.]]
-	Karthus = false--[[Karthus is not supported yet]],
+	Karthus = true,
 	Kennen = true,
 }
 local LSScriptName = GetCurrentEnv().FILE_NAME or "LegendSeries.lua"
 
+--[[
+	Features:
+		All skillshots use VPrediction by Ralph!
+		Kennen:
+			Auto Q W E R in Combo and Harass.
+		Karthus:
+			Auto Q W E in Combo and Harras.
+]]
 
 AddLoadCallback(function()
 	General()
@@ -24,12 +32,12 @@ end
 function General:Load()
 	if _ENV[myHero.charName] and Champions[myHero.charName] then
 		if not self:Libs() then
-	  	Print("Loaded: "..myHero.charName)
-	  	VP = VPrediction(true)
-			Menu = scriptConfig("[LegendSeries] "..myHero.charName,"LegendSeries")
-			Menu:addParam("Author","Author: Pain",5,"","")
-			Menu:addParam("Version","Version: "..Version,5,"","")
-			CurrentChampion = _ENV[myHero.charName]()
+		Print("Loaded: "..myHero.charName)
+		VP = VPrediction(true)
+		Menu = scriptConfig("[LegendSeries] "..myHero.charName,"LegendSeries")
+		Menu:addParam("Author","Author: Pain",5,"","")
+		Menu:addParam("Version","Version: "..Version,5,"","")
+		CurrentChampion = _ENV[myHero.charName]()
 		end
 	elseif not _ENV[myHero.charName] then
 		Print(myHero.charName.." is not currently supported.")
@@ -41,10 +49,10 @@ function General:Load()
 end
 
 function General:Libs()
-  --[[Credits to Bilbao & Aroc]]
+	--[[Credits to Bilbao & Aroc]]
 	self.LIB_NUMBER = 0
 	self.RequiredLibs = {
-		["Prodiction"] = "bitbucket.org/Klokje/public-klokjes-bol-scripts/raw/master/Test/Prodiction/Prodiction.lua",
+		--["Prodiction"] = "bitbucket.org/Klokje/public-klokjes-bol-scripts/raw/master/Test/Prodiction/Prodiction.lua",
 		["VPrediction"] = "raw.githubusercontent.com/Ralphlol/BoLGit/master/VPrediction.lua",
 		["SxOrb"] = "raw.githubusercontent.com/Superx321/BoL/master/common/SxOrbWalk.lua",
 	}
@@ -88,7 +96,6 @@ function General:Updater()
 	self.Host = "raw.githubusercontent.com"
 	self.VersionPath = "/LegendBot/LegendSeries/master/BoL/Version/LegendSeries.version"
 	self.ScriptPath = "/LegendBot/LegendSeries/master/BoL/LegendSeries.lua"
-	self.SavePath = SCRIPT_PATH..LSScriptName
 	self.LuaSocket = require("socket")
 	Print("Checking for updates and required libraries.")
 	Print("If the script does not load soon, please disable auto update and reload.")
@@ -114,11 +121,11 @@ function General:Updater()
 				self.ScriptSocket:send("GET /BoL/TCPUpdater/GetScript.php?script="..self.Host..self.ScriptPath.."&rand="..tostring(math.random(1000)).." HTTP/1.0\r\n\r\n")
 				self.ScriptReceive, self.ScriptStatus = self.ScriptSocket:receive('*a')
 				self.ScriptRAW = string.sub(self.ScriptReceive, string.find(self.ScriptReceive, "<bols".."cript>")+11, string.find(self.ScriptReceive, "</bols".."cript>")-1)
-				local ScriptFileOpen = io.open(self.SavePath, "w+")
+				local ScriptFileOpen = io.open(SCRIPT_PATH..LSScriptName, "w+")
 				ScriptFileOpen:write(self.ScriptRAW)
 				ScriptFileOpen:close()
-				Print("Automatically reloading "..ScriptName)
-				DelayAction(function() dofile(SCRIPT_PATH..ScriptName) end, 0.5)
+				Print("Automatically reloading "..LSScriptName)
+				DelayAction(function() dofile(SCRIPT_PATH..LSScriptName) end, 0.5)
 			else
 				self:Load()
 			end
@@ -143,23 +150,89 @@ end
 
 function Karthus:Menu()
 	Menu:addSubMenu("[LegendSeries] Key Bindings","KB")
+		Menu.KB:addParam("Combo","Combo",2,false,32)
+		Menu.KB:addParam("Harass","Harass",2,false,string.byte("C"))
 	Menu:addSubMenu("[LegendSeries] SxOrbWalk","OW")
+		Menu.OW:addParam("OW","Orbwalker",7, 2, {"Off", "SxOrb"})
+		SxOrb:LoadToMenu(Menu.OW)
+	Menu:addSubMenu("[LegendSeries] Target Selector","TS")
+		ts = TargetSelector(self.Data.TS.mode,self.Data.TS.range,self.Data.TS.damage,false)
+		Menu.TS:addTS(ts)
 	Menu:addSubMenu("[LegendSeries] Combo","C")
+		Menu.C:addParam("Q","Use Q in Combo",1,true)
+		Menu.C:addParam("W","Use W in Combo",1,true)
+		Menu.C:addParam("E","Use E in Combo",1,true)
+		--Menu.C:addParam("R","Use R in Combo",1,true)
 	Menu:addSubMenu("[LegendSeries] Harass","H")
+		Menu.H:addParam("Q","Use Q in Harass",1,true)
+		Menu.H:addParam("W","Use W in Harass",1,true)
+		Menu.H:addParam("E","Use E in Harass",1,true)
 	Menu:addSubMenu("[LegendSeries] Prediction","P")
+		Menu.P:addParam("P","Prediction to use",7,1,{"VPrediction",--[["Prodiction"]]})
+		Menu.P:addParam("QHC","Q Hit Chance",4,2,1,5,0)
+		Menu.P:addParam("WHC","W Hit Chance",4,2,1,5,0)
+		--Menu.P:addParam("RU","R Units to Kill",4,2,1,5,0)
 	Menu:addSubMenu("[LegendSeries] Draw","D")
+		Menu.D:addParam("Q","Draw Q Range",1,true)
+		Menu.D:addParam("W","Draw W Range",1,true)
+		Menu.D:addParam("E","Draw E Range",1,true)
 end
 
 function Karthus:Checks()
-  Print("Checks")
+	Combo = Menu.KB.Combo
+	Harass = Menu.KB.Harass
+	self.Data.Q.ready = myHero:CanUseSpell(_Q) == READY and ((Combo and Menu.C.Q) or (Harass and Menu.H.Q))
+	self.Data.W.ready = myHero:CanUseSpell(_W) == READY and ((Combo and Menu.C.W) or (Harass and Menu.H.W))
+	self.Data.E.ready = myHero:CanUseSpell(_E) == READY and ((Combo and Menu.C.E) or (Harass and Menu.H.E))
+	self.Data.R.ready = myHero:CanUseSpell(_R) == READY and (Combo and Menu.C.R)
+	if Menu.OW.OW == 1 then
+		SxOrb:DisableAttacks()
+		SxOrb:DisableMove()
+	elseif Menu.OW.OW == 2 then
+		SxOrb:EnableAttacks()
+		SxOrb:EnableMove()
+	end
+	ts:update()
+	Target = (Menu.OW.OW == 2 and SxOrb:GetTarget(1200)) or ts.target
 end
 
 function Karthus:Combat()
-  Print("Combat")
+	--[[if self.Data.R.ready then
+		local hc = 0
+		for i = 1, heroManager.iCount do
+			local h = heroManager:GetHero(i)
+			if h.team ~= myHero.team and not h.dead and getDmg("R",h,myHero) > h.health then
+				hc = hc + 1
+			end
+		end
+		if hc >= Menu.P.RU then
+			CastSpell(_R)
+		end
+	end]]
+	if Target == nil then return end
+	if self.Data.Q.ready then
+		if Menu.P.P == 1 then
+			local CastPosition, HitChance = VP:GetLineCastPosition(Target,self.Data.Q.delay,self.Data.Q.width,self.Data.Q.range,self.Data.Q.speed,myHero,true)
+			if CastPosition ~= nil and GetDistance(myHero,CastPosition) < self.Data.Q.range and HitChance >= Menu.P.QHC then
+				CastSpell(_Q,CastPosition.x,CastPosition.z)
+			end
+		end
+	end
+	if self.Data.W.ready then
+		local CastPosition, HitChance = VP:GetLineCastPosition(Target,self.Data.W.delay,self.Data.W.width,self.Data.W.range,self.Data.W.speed,myHero,false)
+		if CastPosition ~= nil and GetDistance(myHero,CastPosition) < self.Data.W.range and HitChance >= Menu.P.WHC then
+			CastSpell(_W,CastPosition.x,CastPosition.z)
+		end
+	end
+	if self.Data.E.ready and GetDistance(myHero,Target) < self.Data.E.range then
+		CastSpell(_E)
+	end
 end
 
 function Karthus:Draw()
-  Print("Draw")
+	for i, k in pairs(self.Data) do
+		if Menu.D[i] then DrawCircle(myHero.x,myHero.y,myHero.z,self.Data[i].range,0x00FFFF) end
+	end
 end
 
 class 'Kennen'
@@ -185,8 +258,8 @@ function Kennen:Menu()
 		Menu.OW:addParam("OW","Orbwalker",7, 2, {"Off", "SxOrb"})
 		SxOrb:LoadToMenu(Menu.OW)
 	Menu:addSubMenu("[LegendSeries] Target Selector","TS")
-    ts = TargetSelector(self.Data.TS.mode,self.Data.TS.range,self.Data.TS.damage,false)
-  	Menu.TS:addTS(ts)
+		ts = TargetSelector(self.Data.TS.mode,self.Data.TS.range,self.Data.TS.damage,false)
+		Menu.TS:addTS(ts)
 	Menu:addSubMenu("[LegendSeries] Combo","C")
 		Menu.C:addParam("Q","Use Q in Combo",1,true)
 		Menu.C:addParam("W","Use W in Combo",1,true)
@@ -197,7 +270,7 @@ function Kennen:Menu()
 		Menu.H:addParam("W","Use W in Harass",1,true)
 		Menu.H:addParam("E","Use E in Harass",1,true)
 	Menu:addSubMenu("[LegendSeries] Prediction","P")
-	  Menu.P:addParam("P","Prediction to use",7,1,{"VPrediction","Prodiction"})
+		Menu.P:addParam("P","Prediction to use",7,1,{"VPrediction",--[["Prodiction"]]})
 		Menu.P:addParam("QHC","Q Hit Chance",4,2,1,5,0)
 		Menu.P:addParam("RU","R Units to Hit",4,2,1,5,0)
 	Menu:addSubMenu("[LegendSeries] Draw","D")
@@ -228,23 +301,18 @@ end
 function Kennen:Combat()
 	if Target == nil then return end
 	if self.Data.Q.ready then
-	  if Menu.P.P == 1 then
-  		local CastPosition, HitChance = VP:GetLineCastPosition(Target,self.Data.Q.delay,self.Data.Q.width,self.Data.Q.range,self.Data.Q.speed,myHero,true)
-  		if CastPosition ~= nil and GetDistance(myHero,CastPosition) < self.Data.Q.range and HitChance >= Menu.P.QHC then
-  			CastSpell(_Q,CastPosition.x,CastPosition.z)
-  		end
-	  elseif Menu.P.P == 2 then --[[Not even tested]]
-	    local CastPosition, Something = Prodiction.GetPrediction(Target,self.Data.Q.range,self.Data.Q.speed,self.Data.Q.delay,self.Data.Q.width,myHero)
-	    if CastPosition ~= nil and GetDistance(myHero,CastPosition) < self.Data.Q.range and not Something.mCollision() then
-	      CastSpell(_Q,CastPosition.x,CastPosition.z)
-	    end
+		if Menu.P.P == 1 then
+			local CastPosition, HitChance = VP:GetLineCastPosition(Target,self.Data.Q.delay,self.Data.Q.width,self.Data.Q.range,self.Data.Q.speed,myHero,true)
+			if CastPosition ~= nil and GetDistance(myHero,CastPosition) < self.Data.Q.range and HitChance >= Menu.P.QHC then
+				CastSpell(_Q,CastPosition.x,CastPosition.z)
+			end
 		end
 	end
 	if self.Data.W.ready and GetDistance(myHero,Target) < self.Data.W.range then
-    CastSpell(_W)
+		CastSpell(_W)
 	end
 	if self.Data.E.ready and not self:Buff() and GetDistance(myHero,Target) < self.Data.E.range then
-    CastSpell(_E)
+		CastSpell(_E)
 	end
 	if self.Data.R.ready then
 		local hc = 0
@@ -281,11 +349,11 @@ function Print(m)
 end
 
 if Debug then
-  AddTickCallback(function()
-  	if os.clock() < (clock or 0) then return end
-  	clock = os.clock() + 1
-  	myHero:MoveTo(myHero.x,myHero.z) --[[AntiAfk, wooo]]
-  end)
+	AddTickCallback(function()
+		if os.clock() < (clock or 0) then return end
+		clock = os.clock() + 1
+		myHero:MoveTo(myHero.x,myHero.z) --[[AntiAfk, wooo]]
+	end)
 end
 
 --[[
